@@ -235,6 +235,13 @@ void cellGcmSetFlipHandler(CellGcmFlipHandler handler);
 /* NID: 0xA547ADDE */
 void cellGcmSetVBlankHandler(CellGcmVBlankHandler handler);
 
+/* Host-side ticks. Call from the game's host driver to fire any
+ * registered guest VBlank/Flip handlers via the g_ps3_guest_caller
+ * mechanism (see ps3emu/guest_call.h). Many games drive their
+ * title-screen state machine from the VBlank handler. */
+void cellGcmTickVBlank(void);
+void cellGcmTickFlip(void);
+
 /* NID: 0xF9BFCDA3 */
 void cellGcmSetSecondVHandler(CellGcmSecondVHandler handler);
 

@@ -95,7 +95,15 @@ typedef struct IoMapping {
 static IoMapping s_io_mappings[CELL_GCM_MAX_IO_MAPPINGS];
 static int s_io_mapping_count = 0;
 
-/* Callback handlers */
+/* Callback handlers — these are GUEST OPD addresses passed by the
+ * recompiled game, not host function pointers. Stored as uint32_t and
+ * invoked through g_ps3_guest_caller (see ps3emu/guest_call.h). */
+static u32 s_flip_handler_opd     = 0;
+static u32 s_vblank_handler_opd   = 0;
+static u32 s_user_handler_opd     = 0;
+static u32 s_second_v_handler_opd = 0;
+/* Legacy host-typed slots kept around for any caller still treating
+ * these as host pointers. New code should use the _opd slots. */
 static CellGcmFlipHandler    s_flip_handler    = NULL;
 static CellGcmVBlankHandler  s_vblank_handler  = NULL;
 static CellGcmUserHandler    s_user_handler    = NULL;
@@ -341,18 +349,35 @@ void cellGcmResetFlipStatus(void)
 /* NID: 0xE315A0B2 */
 u32 cellGcmGetFlipStatus(void)
 {
-    /* If the game is polling flip status, also pump vblank/flip handlers
-     * so the game loop doesn't stall waiting for events. */
-    s_vblank_count++;
-    if (s_vblank_handler)
-        s_vblank_handler(s_vblank_count);
+    /* Avoid host-calling the guest OPDs directly (they're not valid host
+     * function pointers). Use cellGcmTickVBlank() / TickFlip() instead,
+     * which dispatch via g_ps3_guest_caller — see below. */
     if (s_flip_status == CELL_GCM_FLIP_STATUS_WAITING) {
         s_flip_status = CELL_GCM_FLIP_STATUS_DONE;
         s_last_flip_time = get_timestamp_ns();
-        if (s_flip_handler)
-            s_flip_handler(1);
     }
     return s_flip_status;
+}
+
+/* Host-side ticks. The game's host driver (e.g. flow main.cpp) calls
+ * these periodically so registered guest handlers fire — that's what
+ * drives the title-screen state machine for many games. */
+#include "ps3emu/guest_call.h"
+
+void cellGcmTickVBlank(void)
+{
+    s_vblank_count++;
+    if (s_vblank_handler_opd && g_ps3_guest_caller) {
+        g_ps3_guest_caller(s_vblank_handler_opd,
+                           (uint64_t)s_vblank_count, 0, 0, 0);
+    }
+}
+
+void cellGcmTickFlip(void)
+{
+    if (s_flip_handler_opd && g_ps3_guest_caller) {
+        g_ps3_guest_caller(s_flip_handler_opd, 1, 0, 0, 0);
+    }
 }
 
 /* NID: 0xDC09357E */
@@ -446,28 +471,36 @@ u32 cellGcmGetCurrentDisplayBufferId(void)
 /* NID: 0xD9B7653E */
 void cellGcmSetFlipHandler(CellGcmFlipHandler handler)
 {
-    printf("[cellGcmSys] SetFlipHandler(%p)\n", (void*)(size_t)handler);
+    /* `handler` is a guest OPD address — store as such and remember
+     * the legacy host-typed value too for any callers still using
+     * the old API style. Real dispatch goes through
+     * cellGcmDispatchVBlank()/DispatchFlip() via g_ps3_guest_caller. */
+    printf("[cellGcmSys] SetFlipHandler(opd=0x%08X)\n", (unsigned)(size_t)handler);
+    s_flip_handler_opd = (u32)(size_t)handler;
     s_flip_handler = handler;
 }
 
 /* NID: 0xA547ADDE */
 void cellGcmSetVBlankHandler(CellGcmVBlankHandler handler)
 {
-    printf("[cellGcmSys] SetVBlankHandler(%p)\n", (void*)(size_t)handler);
+    printf("[cellGcmSys] SetVBlankHandler(opd=0x%08X)\n", (unsigned)(size_t)handler);
+    s_vblank_handler_opd = (u32)(size_t)handler;
     s_vblank_handler = handler;
 }
 
 /* NID: 0xF9BFCDA3 */
 void cellGcmSetSecondVHandler(CellGcmSecondVHandler handler)
 {
-    printf("[cellGcmSys] SetSecondVHandler(%p)\n", (void*)(size_t)handler);
+    printf("[cellGcmSys] SetSecondVHandler(opd=0x%08X)\n", (unsigned)(size_t)handler);
+    s_second_v_handler_opd = (u32)(size_t)handler;
     s_second_v_handler = handler;
 }
 
 /* NID: 0x0B4B62D5 */
 void cellGcmSetUserHandler(CellGcmUserHandler handler)
 {
-    printf("[cellGcmSys] SetUserHandler(%p)\n", (void*)(size_t)handler);
+    printf("[cellGcmSys] SetUserHandler(opd=0x%08X)\n", (unsigned)(size_t)handler);
+    s_user_handler_opd = (u32)(size_t)handler;
     s_user_handler = handler;
 }
 
