@@ -1,0 +1,58 @@
+name: linux
+
+# Phase-1 enforcement gate for the Linux port: build the runtime library and
+# run the CTest validation suite (SPU + RSX) on GCC and Clang. A red run here
+# is the non-bypassable signal that the Linux build or a gate has regressed.
+
+on:
+  push:
+    branches: [ linux-port, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.compiler }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake python3 clang
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DPS3RECOMP_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Test
+        run: >
+          ctest --test-dir build --output-on-failure
+          --output-junit "${{ github.workspace }}/ctest-${{ matrix.compiler }}.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-${{ matrix.compiler }}
+          path: ctest-${{ matrix.compiler }}.xml
+          if-no-files-found: ignore
