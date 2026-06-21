@@ -161,8 +161,8 @@ extern "C" uint8_t* vm_base;
 extern "C" void ps3_indirect_call(ppu_context* ctx);
 
 /* Trampoline function pointer for cross-fragment branches (TLS).
- * Must match the __declspec(thread) definition in indirect_dispatch. */
-extern "C" __declspec(thread) void (*g_trampoline_fn)(void*);
+ * Must match the thread_local definition in the runtime loader. */
+extern "C" thread_local void (*g_trampoline_fn)(void*);
 
 /* Drain pending trampolines after any call that might set g_trampoline_fn.
  * Converts cross-fragment fallthrough chains into iterative loops. */

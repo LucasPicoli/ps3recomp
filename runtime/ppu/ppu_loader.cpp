@@ -15,7 +15,7 @@
  * Game-agnostic: works on any decrypted PS3 PPU ELF. `vm_base` is owned by the
  * host (allocated large enough to cover the highest segment vaddr+memsz).
  *
- * Compiled as C++ to match the lifted output's `extern "C"` / __declspec(thread).
+ * Compiled as C++ to match the lifted output's `extern "C"` / thread_local.
  */
 
 #include "ppu_recomp.h"     /* ppu_context, func decls, ppu_recomp_register */
@@ -78,7 +78,7 @@ void vm_write64(uint64_t a, uint64_t v) { if (vm_oob((uint32_t)a,8)) return; v =
 }
 
 /* Cross-fragment trampoline pointer (matches the lifted header's TLS decl). */
-extern "C" __declspec(thread) void (*g_trampoline_fn)(void*) = nullptr;
+extern "C" thread_local void (*g_trampoline_fn)(void*) = nullptr;
 
 /* ---------------------------------------------------------------------------
  * Function registry: guest code address -> lifted host function.
