@@ -15,6 +15,7 @@
  */
 
 #include "rsx_commands.h"
+#include "ps3emu/endian.h"   /* ps3_bswap32 — C-safe (ps3types.h only pulls endian.h for C++) */
 #include <stdio.h>
 #include <string.h>
 
@@ -583,7 +584,9 @@ int rsx_process_command_buffer(rsx_state* state, const u32* buf, u32 size)
     u32 count = size / 4; /* size in dwords */
 
     while (pos < count) {
-        u32 header = buf[pos++];
+        /* FIFO command words live in guest memory and are big-endian; load
+         * each word host-endian before decoding (host is little-endian). */
+        u32 header = ps3_bswap32(buf[pos++]);
         u32 type = (header >> 29) & 0x7;
 
         if (type == 0 || type == 2) {
@@ -594,7 +597,7 @@ int rsx_process_command_buffer(rsx_state* state, const u32* buf, u32 size)
             int increasing = (type == 0);
 
             for (u32 i = 0; i < num_data && pos < count; i++) {
-                u32 data = buf[pos++];
+                u32 data = ps3_bswap32(buf[pos++]);
                 u32 m = increasing ? (method + i * 4) : method;
                 rsx_process_method(state, m, data);
                 methods_processed++;
