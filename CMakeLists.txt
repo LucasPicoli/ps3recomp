@@ -173,8 +173,22 @@ if(PS3RECOMP_BUILD_TESTS)
         set_tests_properties("${_tname}" PROPERTIES LABELS "rsx")
     endforeach()
 
+    # PPU HLE unit test: self-contained NID-dispatch + PPC-ABI adapter. Uses a
+    # minimal ppu_recomp.h fixture (the real header is generated per-game; this
+    # test only needs the ppu_context type). Links ppu_hle.cpp, which is part of
+    # the per-game scaffold (runtime/ppu/), not the game-agnostic library.
+    add_executable(test_ppu_hle
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/ppu/tests/test_hle.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/ppu/ppu_hle.cpp")
+    target_include_directories(test_ppu_hle PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/ppu/tests/fixtures"
+        "${CMAKE_CURRENT_SOURCE_DIR}/runtime/ppu"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    add_test(NAME "ppu.hle" COMMAND test_ppu_hle)
+    set_tests_properties("ppu.hle" PROPERTIES LABELS "ppu")
+
     list(LENGTH _spu_gens _spu_count)
-    message(STATUS "Tests enabled: ${_spu_count} SPU + 2 RSX test(s) registered")
+    message(STATUS "Tests enabled: ${_spu_count} SPU + 2 RSX + 1 PPU test(s) registered")
 endif()
 
 # ---------------------------------------------------------------------------
