@@ -17,6 +17,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Options
 # ---------------------------------------------------------------------------
 option(PS3RECOMP_BUILD_TESTS "Build unit tests" OFF)
+option(PS3RECOMP_SANITIZE "Build the library and test gates with ASan + UBSan" OFF)
+
+# Sanitizers must be set before any target is defined so they instrument the
+# library and every test executable. -fno-sanitize-recover=all makes the first
+# UBSan finding abort (non-zero exit) so a sanitizer error fails the gate.
+if(PS3RECOMP_SANITIZE)
+    set(_san -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    add_compile_options(${_san})
+    add_link_options(${_san})
+    message(STATUS "Sanitizers ON: ASan + UBSan")
+endif()
 
 # ---------------------------------------------------------------------------
 # Collect source files
@@ -140,6 +151,13 @@ if(PS3RECOMP_BUILD_TESTS)
     # verdict. (run_tests.sh is the equivalent batch driver over the same script.)
     set(_spu_tests_dir "${CMAKE_CURRENT_SOURCE_DIR}/runtime/spu/tests")
     file(GLOB _spu_gens "${_spu_tests_dir}/gen_test_*.py")
+    # run_one.sh compiles the SPU tests itself; pass the compiler, python, and
+    # (when sanitizing) the sanitizer flags through the test environment.
+    set(_spu_test_env "GCC=${CMAKE_C_COMPILER};PYTHON=${Python3_EXECUTABLE}")
+    if(PS3RECOMP_SANITIZE)
+        string(REPLACE ";" " " _san_str "${_san}")
+        set(_spu_test_env "${_spu_test_env};SANFLAGS=${_san_str}")
+    endif()
     foreach(_gen ${_spu_gens})
         get_filename_component(_base "${_gen}" NAME_WE)        # gen_test_<name>
         string(REGEX REPLACE "^gen_test_" "" _name "${_base}")
@@ -150,7 +168,7 @@ if(PS3RECOMP_BUILD_TESTS)
             )
             set_tests_properties("spu.${_name}" PROPERTIES
                 LABELS "spu"
-                ENVIRONMENT "GCC=${CMAKE_C_COMPILER};PYTHON=${Python3_EXECUTABLE}"
+                ENVIRONMENT "${_spu_test_env}"
             )
         endif()
     endforeach()

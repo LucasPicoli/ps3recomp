@@ -58,3 +58,40 @@ jobs:
           name: ctest-${{ matrix.compiler }}
           path: ctest-${{ matrix.compiler }}.xml
           if-no-files-found: ignore
+
+  sanitize:
+    name: asan-ubsan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake python3 libsdl2-dev
+
+      - name: Configure (ASan + UBSan)
+        run: >
+          cmake -S . -B build-san -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DPS3RECOMP_BUILD_TESTS=ON
+          -DPS3RECOMP_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build-san -j"$(nproc)"
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: >
+          ctest --test-dir build-san --output-on-failure
+          --output-junit "${{ github.workspace }}/ctest-asan-ubsan.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-asan-ubsan
+          path: ctest-asan-ubsan.xml
+          if-no-files-found: ignore

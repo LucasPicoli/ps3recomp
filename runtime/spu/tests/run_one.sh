@@ -8,7 +8,8 @@
 #   test_<name>_main.c   - harness with channel-overriding stubs and asserts.
 #
 # Exit code is the verdict: 0 = pass, non-zero = build error or test failure.
-# Honours $GCC and $PYTHON env vars (CTest passes them through).
+# Honours $GCC, $PYTHON and $SANFLAGS env vars (CTest passes them through;
+# SANFLAGS carries -fsanitize=... when the suite is built with PS3RECOMP_SANITIZE).
 set -e
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -43,7 +44,7 @@ rm -rf "$gen_out"
 EXTRA=""
 [ -f "$HERE/test_${name}.deps" ] && . "$HERE/test_${name}.deps"
 
-if ! "$GCC" -std=c11 -O2 -I "$gen_out" -I "$RUNTIME_SPU" \
+if ! "$GCC" -std=c11 -O2 $SANFLAGS -I "$gen_out" -I "$RUNTIME_SPU" \
     "$gen_out/spu_recomp.c" "$main" $EXTRA -o "$exe" \
     2> "$HERE/build_${name}.log"; then
     echo "[FAIL] $name: build error -- see build_${name}.log" >&2
