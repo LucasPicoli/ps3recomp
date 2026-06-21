@@ -93,3 +93,11 @@ _drill/
 
 # Local Claude Code settings
 .claude/
+.osgrep
+
+# Internal working specs/docs for this fork — never committed upstream
+docs/superpowers/
+
+# Generated SPU test artifacts (run_one.sh / run_tests.sh / CTest)
+runtime/spu/tests/out_*/
+runtime/spu/tests/test_*_image.h

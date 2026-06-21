@@ -5,16 +5,14 @@
 #   gen_test_<name>.py   - encodes the SPU program and wraps it in an ELF.
 #   test_<name>_main.c   - harness with channel-overriding stubs and asserts.
 #
+# This is a thin batch driver over run_one.sh (which builds+runs a single
+# test); CTest registers each test individually via the same run_one.sh, so
+# the batch script and the CTest gate share one implementation.
+#
 # Usage: ./run_tests.sh  [<gcc-path>]
-# Honours $GCC env var.
-
-set -e
+# Honours $GCC and $PYTHON env vars.
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPO="$(cd "$HERE/../../.." && pwd)"
-TOOLS="$REPO/tools"
-RUNTIME_SPU="$REPO/runtime/spu"
-
 GCC="${1:-${GCC:-gcc}}"
 
 pass=0
@@ -27,38 +25,12 @@ for gen in "$HERE"/gen_test_*.py; do
     main="$HERE/test_${name}_main.c"
     [ -f "$main" ] || { echo "[skip] $name: no test_${name}_main.c"; continue; }
 
-    elf="$HERE/test_${name}.elf"
-    # Use an `out_` prefix for generated dirs so `gen_test_*.py` and
-    # `out_*` never collide under a `rm -rf gen_*` glob.
-    gen_out="$HERE/out_${name}"
-    exe="$HERE/test_${name}.exe"
-
-    rm -rf "$gen_out"
-    python "$gen" > /dev/null
-    python "$TOOLS/spu_lifter.py" --auto-functions "$elf" \
-        --output "$gen_out" > /dev/null
-
-    # Optional per-test extra build args (extra sources / -I dirs). A
-    # test_<name>.deps file is sourced with $REPO/$RUNTIME_SPU in scope and may
-    # set EXTRA="..." (e.g. to link a libs/ HLE module like cellSync.c).
-    EXTRA=""
-    [ -f "$HERE/test_${name}.deps" ] && . "$HERE/test_${name}.deps"
-
-    if "$GCC" -std=c11 -O2 -I "$gen_out" -I "$RUNTIME_SPU" \
-        "$gen_out/spu_recomp.c" "$main" $EXTRA -o "$exe" \
-        2> "$HERE/build_${name}.log"; then
-        out=$("$exe" 2>&1) && rc=$? || rc=$?
-        if [ "$rc" -eq 0 ]; then
-            echo "[PASS] $name -- $out"
-            pass=$((pass+1))
-        else
-            echo "[FAIL] $name (exit $rc)"
-            echo "$out" | sed 's/^/   /'
-            failed_tests+=("$name")
-            fail=$((fail+1))
-        fi
+    if out=$(GCC="$GCC" "$HERE/run_one.sh" "$name" 2>&1); then
+        echo "[PASS] $name -- $out"
+        pass=$((pass+1))
     else
-        echo "[FAIL] $name (build error -- see build_${name}.log)"
+        echo "[FAIL] $name"
+        echo "$out" | sed 's/^/   /'
         failed_tests+=("$name")
         fail=$((fail+1))
     fi

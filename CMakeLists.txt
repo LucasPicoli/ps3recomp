@@ -126,6 +126,40 @@ install(DIRECTORY include/ps3emu
 )
 
 # ---------------------------------------------------------------------------
+# Tests (opt-in: -DPS3RECOMP_BUILD_TESTS=ON)
+# ---------------------------------------------------------------------------
+# Each gate is a single command whose exit code is the verdict, registered as a
+# CTest case so `ctest --output-junit` yields per-case machine-readable results.
+if(PS3RECOMP_BUILD_TESTS)
+    enable_testing()
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    find_program(BASH_EXECUTABLE bash REQUIRED)
+
+    # SPU integration tests: each gen_test_<name>.py / test_<name>_main.c pair is
+    # generated -> lifted -> compiled -> run by run_one.sh; its exit code is the
+    # verdict. (run_tests.sh is the equivalent batch driver over the same script.)
+    set(_spu_tests_dir "${CMAKE_CURRENT_SOURCE_DIR}/runtime/spu/tests")
+    file(GLOB _spu_gens "${_spu_tests_dir}/gen_test_*.py")
+    foreach(_gen ${_spu_gens})
+        get_filename_component(_base "${_gen}" NAME_WE)        # gen_test_<name>
+        string(REGEX REPLACE "^gen_test_" "" _name "${_base}")
+        if(EXISTS "${_spu_tests_dir}/test_${_name}_main.c")
+            add_test(
+                NAME "spu.${_name}"
+                COMMAND "${BASH_EXECUTABLE}" "${_spu_tests_dir}/run_one.sh" "${_name}"
+            )
+            set_tests_properties("spu.${_name}" PROPERTIES
+                LABELS "spu"
+                ENVIRONMENT "GCC=${CMAKE_C_COMPILER};PYTHON=${Python3_EXECUTABLE}"
+            )
+        endif()
+    endforeach()
+
+    list(LENGTH _spu_gens _spu_count)
+    message(STATUS "Tests enabled: ${_spu_count} SPU integration test(s) registered")
+endif()
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 message(STATUS "")
