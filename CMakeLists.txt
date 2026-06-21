@@ -155,8 +155,26 @@ if(PS3RECOMP_BUILD_TESTS)
         endif()
     endforeach()
 
+    # RSX unit tests: self-contained C harnesses linked against the runtime
+    # library. Each returns non-zero on failure (a real gate, not a smoke print).
+    foreach(_rsx_test
+            "rsx.fifo:test_rsx_fifo:libs/video/tests/test_rsx_fifo.c"
+            "rsx.fp_decompiler:test_rsx_fp_decompiler:libs/video/tests/test_fp_decompiler.c")
+        string(REPLACE ":" ";" _parts "${_rsx_test}")
+        list(GET _parts 0 _tname)
+        list(GET _parts 1 _ttarget)
+        list(GET _parts 2 _tsrc)
+        add_executable(${_ttarget} "${CMAKE_CURRENT_SOURCE_DIR}/${_tsrc}")
+        target_link_libraries(${_ttarget} PRIVATE ps3recomp_runtime)
+        target_include_directories(${_ttarget} PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/libs/video"
+            "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        add_test(NAME "${_tname}" COMMAND ${_ttarget})
+        set_tests_properties("${_tname}" PROPERTIES LABELS "rsx")
+    endforeach()
+
     list(LENGTH _spu_gens _spu_count)
-    message(STATUS "Tests enabled: ${_spu_count} SPU integration test(s) registered")
+    message(STATUS "Tests enabled: ${_spu_count} SPU + 2 RSX test(s) registered")
 endif()
 
 # ---------------------------------------------------------------------------
